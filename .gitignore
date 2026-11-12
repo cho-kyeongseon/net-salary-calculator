@@ -1,0 +1,31 @@
+# 원본 자료 (USB에만 보관, GitHub에 올리지 않음)
+data/
+raw/
+원본/
+원본자료/
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.hwp
+*.hwpx
+*.pdf
+
+# 큰 파일·압축 파일
+*.zip
+*.7z
+*.rar
+*.mp4
+*.mov
+
+# 환경·도구
+.env
+.env.*
+.vercel/
+node_modules/
+
+# OS가 만드는 파일
+Thumbs.db
+desktop.ini
+.DS_Store
+System Volume Information/
