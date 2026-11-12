@@ -98,6 +98,19 @@ button.reset{margin-top:12px;padding:8px 12px;border:1px solid var(--line);borde
         <option value="1" selected>100%</option>
         <option value="1.2">120%</option>
       </select>
+
+      <label for="duru">두루누리 사회보험료 지원</label>
+      <select id="duru">
+        <option value="0" selected>해당 없음</option>
+        <option value="0.8">80% 지원</option>
+      </select>
+      <div class="hint">10인 미만 사업장, 월보수 270만 원 미만 신규가입자 대상(2026년 80%). 국민연금·고용보험(실업급여)분만 줄어듭니다. 대상 여부는 공단 공고로 확인하세요.</div>
+
+      <label for="period">국민연금 기준소득월액 상·하한 적용 시기</label>
+      <select id="period">
+        <option value="1">2026년 1~6월 (상한 637만 / 하한 40만)</option>
+        <option value="2" selected>2026년 7월~ (상한 659만 / 하한 41만)</option>
+      </select>
     </div>
 
     <div class="card">
@@ -113,6 +126,27 @@ button.reset{margin-top:12px;padding:8px 12px;border:1px solid var(--line);borde
   </div>
 
   <div class="card" style="margin-top:16px">
+    <h2>회사 부담 · 총 인건비</h2>
+    <div class="grid">
+      <div>
+        <label for="stable">사업장 규모 (고용안정·직업능력개발)</label>
+        <select id="stable"></select>
+        <div class="hint">150인 이상이라도 우선지원대상기업이면 0.45%: 상시근로자 제조업 500명, 광업·건설·운수창고·정보통신·사업지원·전문과학기술·보건복지 300명, 도소매·숙박음식·금융보험·예술스포츠 200명, 그 밖의 업종 100명 이하이거나 중소기업기본법상 중소기업.</div>
+        <label for="industry">산재보험 업종</label>
+        <select id="industry"></select>
+        <div id="injuryBox" hidden>
+          <label for="injuryCustom">업종 요율 직접 입력 (%, 출퇴근재해 0.06%는 따로 더함)</label>
+          <input id="injuryCustom" type="number" min="0" step="0.01" value="1.41">
+        </div>
+        <div class="hint">업종 요율 + 출퇴근재해 0.06%. 2026년 전체 평균은 1.47%(출퇴근재해 포함)입니다. 실제 요율은 사업장 산재 고지서를 기준으로 하세요.</div>
+      </div>
+      <div>
+        <table id="ctbl"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
     <details>
       <summary>계산 기준 (2026년 11월 기준 · 수정 가능)</summary>
       <div class="settings" id="settings"></div>
@@ -122,7 +156,10 @@ button.reset{margin-top:12px;padding:8px 12px;border:1px solid var(--line);borde
         · 건강보험 3.595%(7.19%의 절반), 장기요양 = 건강보험료 × 0.9448/7.19, 고용보험 0.9%<br>
         · 소득세: 소득세법 시행령 [별표 2] 근로소득 간이세액표(2026.2.27. 개정, 2026.3.1. 이후 지급분) 원문 646개 구간을 그대로 조회합니다. 월 1,000만 원 초과분은 별표 하단 산식, 가족 11명 초과는 별표 제4호를 적용합니다.<br>
         · 8~20세 자녀 공제: 1명 20,830원, 2명 45,830원, 3명 이상은 45,830원 + 2명 초과 1명당 33,330원 (별표2 제3호)<br>
-        · 지방소득세 = 소득세 × 10%. 모든 항목 10원 미만 절사.
+        · 지방소득세 = 소득세 × 10%. 모든 항목 10원 미만 절사.<br>
+        · 두루누리: 국민연금·고용보험(실업급여) 보험료에서 지원액(10원 미만 절사)을 근로자·사업주 몫 각각 뺍니다.<br>
+        · 회사 부담: 국민연금·건강·장기요양·실업급여는 근로자와 같은 금액, 고용안정·직능 0.25~0.85%(규모별), 산재 = 업종 요율 + 출퇴근재해 요율.<br>
+        · 역산: 세액표가 계단식이라 급여가 늘어도 실수령액이 줄어드는 구간이 있어, 근사값 아래 15만 원 범위를 1원 단위로 모두 계산해 목표 이상인 최소 급여를 찾습니다.
       </p>
     </details>
   </div>
@@ -141,15 +178,16 @@ const DEFAULTS = {
   healthRate: 3.595,      // 건강보험 본인부담률(%)
   careRate: 0.9448,       // 장기요양보험료율(%)
   healthTotal: 7.19,      // 건강보험료율 전체(%)
-  empRate: 0.9,           // 고용보험 근로자(%)
-  kid1: 20830,            // 자녀 1명 월 공제 (별표2 제3호)
+  empRate: 0.9,           // 고용보험 실업급여 (근로자·사업주 각각, %)
+  commuteRate: 0.06,      // 산재 출퇴근재해 요율(%, 업종 요율에 더함)
+  kid1: 20830,           // 자녀 1명 월 공제 (별표2 제3호)
   kid2: 45830,            // 자녀 2명 월 공제
   kidMore: 33330          // 3명 이상: 2명 초과 1명당 추가
 };
 const LABELS = {
   pensionRate:"국민연금 본인부담률 (%)", pensionHi:"국민연금 기준소득월액 상한", pensionLo:"국민연금 기준소득월액 하한",
   healthRate:"건강보험 본인부담률 (%)", careRate:"장기요양보험료율 (%)", healthTotal:"건강보험료율 전체 (%)",
-  empRate:"고용보험 근로자부담률 (%)", kid1:"자녀 1명 월 세액공제", kid2:"자녀 2명 월 세액공제", kidMore:"자녀 3명~ 1명당 추가"
+  empRate:"고용보험 실업급여 요율 (%, 각자)", commuteRate:"산재 출퇴근재해 요율 (%)", kid1:"자녀 1명 월 세액공제", kid2:"자녀 2명 월 세액공제", kidMore:"자녀 3명~ 1명당 추가"
 };
 let C = {...DEFAULTS};
 
@@ -159,14 +197,42 @@ const floor10 = x => Math.floor(x / 10) * 10;
 const num = s => Number(String(s).replace(/[^\d.]/g, "")) || 0;
 const fmt = n => Math.round(n).toLocaleString("ko-KR");
 
+// 고용보험 고용안정·직업능력개발사업 (사업주만 부담, %)
+const EMP_STABLE = [
+  ["150인 미만", 0.25], ["150인 이상 · 우선지원대상기업", 0.45],
+  ["150인 이상 ~ 1,000인 미만", 0.65], ["1,000인 이상 · 국가·지자체", 0.85]
+];
+// 산재보험 업종 요율 (2026년도 사업종류별 산재보험료율, 고용노동부 고시 제2025-91호 기준, %)
+// 실제 적용 요율은 사업장 산재 고지서 기준. '분류 확인'은 근로복지공단 사업종류 예시표로 확인 필요
+const INDUSTRY = [
+  ["음식점업", 0.8], ["카페·커피전문점", 0.8], ["주점업", 0.8], ["숙박업", 0.8],
+  ["도소매업", 0.8], ["편의점·마트", 0.8], ["온라인쇼핑몰(전자상거래)", 0.8],
+  ["학원·교육서비스업", 0.6], ["병·의원·약국", 0.6], ["요양원·사회복지시설", 0.6],
+  ["헬스장·체육시설", 0.6], ["광고업·디자인 (분류 확인)", 0.6], ["세무·회계·법무 사무소", 0.6],
+  ["소프트웨어·IT 개발 (분류 확인)", 0.6], ["이·미용업 (분류 확인)", 0.8],
+  ["청소·경비·시설관리", 0.8], ["인력공급·파견", 0.8], ["부동산중개·임대업", 0.7],
+  ["금융·보험업", 0.5], ["창고·물류", 0.8], ["화물·택배 운송", 1.8], ["식료품 제조업", 1.6],
+  ["의류·섬유 제조업", 1.1], ["금속·기계 제조업", 1.3], ["전자제품 제조업", 0.6],
+  ["인쇄·출판업", 0.9], ["통신업", 0.9], ["건설업 (노무비 기준 별도)", 3.5], ["기타의 각종사업", 0.8]
+];
+
 // ---------- 4대보험 ----------
-function insurance(insBase){
+// duru: 두루누리 지원율(0~1). 국민연금·고용보험(실업급여)분의 근로자·사업주 몫을 각각 줄인다.
+function insurance(insBase, opt){
+  const duru = opt.duru || 0;
   const pBase = Math.min(Math.max(Math.floor(insBase / 1000) * 1000, C.pensionLo), C.pensionHi);
-  const pension = insBase > 0 ? floor10(pBase * C.pensionRate / 100) : 0;
+  const pensionFull = insBase > 0 ? floor10(pBase * C.pensionRate / 100) : 0;
+  const pension = pensionFull - floor10(pensionFull * duru);
   const health = floor10(insBase * C.healthRate / 100);
   const care = floor10(health * C.careRate / C.healthTotal);
-  const emp = floor10(insBase * C.empRate / 100);
-  return {pension, health, care, emp};
+  const empFull = floor10(insBase * C.empRate / 100);
+  const emp = empFull - floor10(empFull * duru);
+  // 사업주 부담: 국민연금·건강·장기요양·실업급여는 근로자와 같은 금액
+  const empStable = floor10(insBase * (opt.stableRate || 0) / 100);
+  const injury = floor10(insBase * ((opt.injuryRate || 0) + C.commuteRate) / 100);
+  const employer = {pension, health, care, emp, empStable, injury,
+                    total: pension + health + care + emp + empStable + injury};
+  return {pension, health, care, emp, duruCut: (pensionFull - pension) + (empFull - emp), employer};
 }
 
 // ---------- 근로소득 간이세액표 (taxtable.js: 소득세법 시행령 별표2 원문) ----------
@@ -210,13 +276,17 @@ function incomeTax(T, n, kids, ratio){
 function calc(gross, opt){
   const nontax = Math.min(opt.nontax, gross);
   const taxable = gross - nontax;
-  const ins = insurance(taxable);
+  const ins = insurance(taxable, opt);
   const itax = incomeTax(taxable, opt.family, opt.kids, opt.ratio);
   const ltax = floor10(itax * 0.1);
   const deduct = ins.pension + ins.health + ins.care + ins.emp + itax + ltax;
   return {gross, nontax, taxable, ...ins, itax, ltax, deduct, net: gross - deduct};
 }
-// 목표 실수령액 이상이 되는 최소 세전 급여 (이분 탐색)
+// 목표 실수령액 이상이 되는 최소 세전 급여
+// 간이세액표가 계단식이라 급여가 조금 늘 때 실수령액이 오히려 줄어드는 구간이 있다.
+// 그래서 1) 이분 탐색으로 근사값을 찾고 2) 그 아래 SCAN_WINDOW원을 1원 단위로 전부 계산해
+// 목표 이상이 되는 가장 작은 급여를 고른다. (가족·징수비율별 실측 최대 차이 약 5.3만 원)
+const SCAN_WINDOW = 150000;
 function reverse(target, opt){
   let lo = 0, hi = 2e9;
   if (calc(hi, opt).net < target) return null;
@@ -224,6 +294,8 @@ function reverse(target, opt){
     const mid = Math.floor((lo + hi) / 2);
     if (calc(mid, opt).net >= target) hi = mid; else lo = mid + 1;
   }
+  for (let g = Math.max(0, lo - SCAN_WINDOW); g < lo; g++)
+    if (calc(g, opt).net >= target) return g;
   return lo;
 }
 
@@ -231,7 +303,28 @@ function reverse(target, opt){
 let unit = "month"; // "month" | "year"
 function options(){
   return { nontax: num($("nontax").value), family: Number($("family").value),
-           kids: Number($("kids").value), ratio: Number($("ratio").value) };
+           kids: Number($("kids").value), ratio: Number($("ratio").value),
+           duru: Number($("duru").value),
+           stableRate: EMP_STABLE[Number($("stable").value)][1],
+           injuryRate: $("industry").value === "custom"
+             ? Number(String($("injuryCustom").value).replace(/[^\d.]/g, "")) || 0
+             : INDUSTRY[Number($("industry").value)][1] };
+}
+// 소득세가 간이세액표 어느 구간·열에서 나왔는지 설명 (월 기준)
+function taxBasis(r, opt){
+  const T = r.taxable, n = opt.family;
+  const col = n <= 11 ? `가족 ${n}명 열` : `가족 11명 초과(별표 제4호)`;
+  let s;
+  if (T < 770000) s = "└ 월급여 77만 원 미만: 간이세액표상 세액 없음";
+  else if (T < 1e7){
+    const L = TAX_TABLE.lower;
+    let i = 0; while (i + 1 < L.length && L[i + 1] <= T / 1000) i++;
+    const upper = i + 1 < L.length ? L[i + 1] : 10000;
+    s = `└ 간이세액표 ${fmt(L[i])}~${fmt(upper)}천원 구간 · ${col}`;
+  } else s = `└ 월 1,000만 원 이상: 10,000천원 세액 + 별표 산식 · ${col}`;
+  if (opt.kids) s += ` · 자녀 ${opt.kids}명 공제`;
+  if (opt.ratio !== 1) s += ` · ${Math.round(opt.ratio * 100)}% 징수`;
+  return s;
 }
 function render(){
   const opt = options();
@@ -243,6 +336,9 @@ function render(){
   const g = reverse(monthlyTarget, opt);
   if (g === null){ $("warn").textContent = "계산 범위를 벗어난 금액입니다."; return; }
   const r = calc(g, opt);
+  // 같은 실수령액이 나오는 급여 상한 (10원 단위로 확인)
+  let gMax = g;
+  while (gMax - g < SCAN_WINDOW && calc(gMax + 10, opt).net === r.net) gMax += 10;
   $("heroLbl").textContent = yr ? "필요한 연봉 (세전, 비과세 포함)" : "필요한 월 급여 (세전, 비과세 포함)";
   $("heroVal").textContent = fmt(g * m) + "원";
   $("heroYr").textContent = yr
@@ -251,24 +347,41 @@ function render(){
   const diff = r.net * m - target;
   if (diff > 0)
     $("warn").textContent = `세액이 구간별로 정해져 ${U} 실수령액이 정확히 ${fmt(target)}원이 되는 급여가 없어, 목표 이상이 되는 최소 금액을 보여줍니다 (+${fmt(diff)}원).`;
+  if (gMax - g >= 1000)
+    $("warn").textContent += ` 월 급여를 ${fmt(gMax)}원까지 올려도 실수령액은 같습니다.`;
   const rows = [
     [`${U} 급여 (세전)`, r.gross * m, ""],
     ["└ 비과세", r.nontax * m, "sub"],
-    ["국민연금", -r.pension * m],
+    [r.duruCut ? "국민연금 (두루누리 차감 후)" : "국민연금", -r.pension * m],
     ["건강보험", -r.health * m],
     ["장기요양보험", -r.care * m],
     ["고용보험", -r.emp * m],
     ["소득세", -r.itax * m],
+    [taxBasis(r, opt), null, "sub"],
     ["지방소득세", -r.ltax * m],
-    ["공제 합계", -r.deduct * m],
+    [`공제 합계 (세전의 ${(r.gross ? r.deduct / r.gross * 100 : 0).toFixed(1)}%)`, -r.deduct * m],
   ];
-  $("tbl").innerHTML = rows.map(([k, v, cls]) =>
-    `<tr class="${cls || ""}"><td>${k}</td><td class="${v < 0 ? "m" : ""}">${v < 0 ? "−" : ""}${fmt(Math.abs(v))}원</td></tr>`
+  $("tbl").innerHTML = rows.map(([k, v, cls]) => v === null
+    ? `<tr class="${cls}"><td colspan="2">${k}</td></tr>`
+    : `<tr class="${cls || ""}"><td>${k}</td><td class="${v < 0 ? "m" : ""}">${v < 0 ? "−" : ""}${fmt(Math.abs(v))}원</td></tr>`
   ).join("") + `<tr class="total"><td>${U} 실수령액</td><td>${fmt(r.net * m)}원</td></tr>`;
+
+  const e = r.employer;
+  const crows = [
+    ["국민연금", e.pension], ["건강보험", e.health], ["장기요양보험", e.care],
+    ["고용보험 (실업급여)", e.emp], ["고용보험 (고용안정·직능)", e.empStable], ["산재보험", e.injury],
+    ["회사 부담 합계", e.total],
+  ];
+  $("ctbl").innerHTML = crows.map(([k, v]) => `<tr><td>${k}</td><td>${fmt(v * m)}원</td></tr>`).join("")
+    + `<tr class="total"><td>${U} 총 인건비 (급여 + 회사 부담)</td><td>${fmt((r.gross + e.total) * m)}원</td></tr>`;
 }
 
 function fillSelects(){
   $("family").innerHTML = Array.from({length: 15}, (_, i) => `<option value="${i + 1}">${i + 1}명</option>`).join("");
+  $("stable").innerHTML = EMP_STABLE.map(([n, r], i) => `<option value="${i}">${n} (${r}%)</option>`).join("");
+  $("industry").innerHTML = INDUSTRY.map(([n, r], i) => `<option value="${i}">${n} (${r}%)</option>`).join("")
+    + `<option value="custom">직접 입력</option>`;
+  $("industry").value = INDUSTRY.length - 1; // 기타의 각종사업
   syncKids();
 }
 function syncKids(){
@@ -300,8 +413,13 @@ document.querySelectorAll(".card input.money:not([data-k])").forEach(el => el.ad
   const n = num(el.value); el.value = n ? fmt(n) : ""; render();
 }));
 $("family").addEventListener("change", () => { syncKids(); render(); });
-["kids", "ratio"].forEach(id => $(id).addEventListener("change", render));
-$("resetBtn").addEventListener("click", () => { C = {...DEFAULTS}; buildSettings(); render(); });
+["kids", "ratio", "duru", "stable"].forEach(id => $(id).addEventListener("change", render));
+$("industry").addEventListener("change", () => { $("injuryBox").hidden = $("industry").value !== "custom"; render(); });
+$("injuryCustom").addEventListener("input", render);
+// 국민연금 상·하한: 2026.1~6월 637만/40만, 2026.7월~ 659만/41만
+const PENSION_CAPS = {1: {pensionHi: 6370000, pensionLo: 400000}, 2: {pensionHi: 6590000, pensionLo: 410000}};
+$("period").addEventListener("change", () => { Object.assign(C, PENSION_CAPS[$("period").value]); buildSettings(); render(); });
+$("resetBtn").addEventListener("click", () => { C = {...DEFAULTS}; $("period").value = "2"; buildSettings(); render(); });
 
 fillSelects(); buildSettings(); render();
 </script>
